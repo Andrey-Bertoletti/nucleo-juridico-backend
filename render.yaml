@@ -1,0 +1,62 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Permite que o Render provisione o serviço automaticamente. Você pode importar
+# este blueprint em https://dashboard.render.com/blueprints, ou simplesmente
+# usar este arquivo como referência ao criar o Web Service manualmente.
+#
+# IMPORTANTE: os valores marcados como `sync: false` precisam ser preenchidos
+# no dashboard do Render — não os commite nem coloque valores reais aqui.
+
+services:
+  - type: web
+    name: nucleo-juridico-backend
+    runtime: python
+    plan: free                       # ajuste para "starter" quando quiser sair do free
+    region: oregon                   # us-west (oregon) é o padrão; mude se preferir
+    branch: main
+    autoDeploy: true
+
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips=*
+
+    healthCheckPath: /health
+
+    envVars:
+      # --- Aplicação ---
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: PYTHON_VERSION
+        value: "3.12.5"
+
+      # --- Banco (Supabase Postgres) ---
+      # Use a string de conexão "Transaction pooler" (porta 6543) do Supabase.
+      # Ex.: postgresql+psycopg://postgres.PROJECT:SENHA@aws-0-REGION.pooler.supabase.com:6543/postgres
+      - key: DATABASE_URL
+        sync: false
+
+      # --- Supabase Auth/Storage ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: documentos
+
+      # --- CORS ---
+      # Lista os domínios autorizados a chamar a API.
+      # Inclua a URL do frontend Vercel (preview e produção) separados por vírgula.
+      # Ex.: https://nucleo-juridico-frontend.vercel.app,https://npj-ites.com.br
+      - key: CORS_ORIGINS
+        sync: false
+
+      # --- JWT ---
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_AUDIENCE
+        value: authenticated
