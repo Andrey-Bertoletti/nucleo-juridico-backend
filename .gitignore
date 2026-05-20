@@ -16,6 +16,9 @@ venv/
 env/
 ENV/
 
+# ===== Node / Supabase CLI =====
+node_modules/
+
 # ===== Build / distribuição =====
 build/
 dist/
