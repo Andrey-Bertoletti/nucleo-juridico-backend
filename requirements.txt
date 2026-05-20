@@ -1,0 +1,23 @@
+# ===== Framework web =====
+fastapi>=0.115
+uvicorn[standard]>=0.32
+
+# ===== Validação / Settings =====
+pydantic>=2.9
+pydantic-settings>=2.6
+
+# ===== Banco de dados =====
+sqlalchemy>=2.0
+psycopg[binary]>=3.2
+alembic>=1.13
+
+# ===== Supabase =====
+supabase>=2.9
+
+# ===== Autenticação / JWT =====
+pyjwt>=2.9
+
+# ===== Utilitários =====
+python-multipart>=0.0.12       # upload de arquivos
+python-dotenv>=1.0
+httpx>=0.27

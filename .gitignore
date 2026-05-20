@@ -1,0 +1,57 @@
+# ===== Variáveis de ambiente =====
+.env
+.env.*
+!.env.example
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ===== Virtualenv =====
+.venv/
+venv/
+env/
+ENV/
+
+# ===== Build / distribuição =====
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# ===== Testes / cobertura =====
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+nosetests.xml
+coverage.xml
+
+# ===== Type-checking / lint =====
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# ===== Editor / Sistema operacional =====
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+# ===== Alembic =====
+# (mantenha as migrações versionadas; ignore apenas artefatos locais, se houver)
