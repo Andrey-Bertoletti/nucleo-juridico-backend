@@ -3,7 +3,7 @@ fastapi>=0.115
 uvicorn[standard]>=0.32
 
 # ===== Validação / Settings =====
-pydantic>=2.9
+pydantic[email]>=2.9            # extra `email` instala o `email-validator`, exigido por EmailStr
 pydantic-settings>=2.6
 
 # ===== Banco de dados =====
