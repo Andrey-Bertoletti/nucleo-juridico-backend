@@ -10,6 +10,7 @@ from app.core.dependencies import (
     DbSession,
     require_admin,
 )
+from app.modules.users.models import Profile
 from app.modules.users import service
 from app.modules.users.schemas import (
     UserCreate,
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("", response_model=list[UserResponse])
 def list_users(
     db: DbSession,
-    _: CurrentUser = Depends(require_admin),
+    _: Profile = Depends(require_admin),
 ) -> list[UserResponse]:
     return service.list_users(db)
 
@@ -34,7 +35,7 @@ def list_users(
 def create_user(
     payload: UserCreate,
     db: DbSession,
-    _: CurrentUser = Depends(require_admin),
+    _: Profile = Depends(require_admin),
 ) -> UserResponse:
     return service.create_user(db, payload)
 
@@ -87,6 +88,6 @@ def change_user_status(
     user_id: UUID,
     payload: UserStatusUpdate,
     db: DbSession,
-    _: CurrentUser = Depends(require_admin),
+    _: Profile = Depends(require_admin),
 ) -> UserResponse:
     return service.change_status(db, user_id, payload)

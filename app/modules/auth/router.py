@@ -1,17 +1,16 @@
 """Rotas do módulo auth."""
 
-from fastapi import APIRouter, Depends, Response, status
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import APIRouter, Response, status
 
-from app.core.dependencies import (
-    BearerCredentials,
-    CurrentUser,
-    DbSession,
-    bearer_scheme,
-    get_current_user,
-)
+from app.core.dependencies import BearerCredentials, CurrentUser, DbSession
 from app.modules.auth import service
-from app.modules.auth.schemas import LoginRequest, LoginResponse, MeResponse
+from app.modules.auth.schemas import (
+    LoginRequest,
+    LoginResponse,
+    MeResponse,
+    RegisterRequest,
+    RegisterResponse,
+)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -28,10 +27,28 @@ def login(payload: LoginRequest, db: DbSession) -> LoginResponse:
     )
 
 
+@router.post(
+    "/register",
+    response_model=RegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def register(payload: RegisterRequest, db: DbSession) -> RegisterResponse:
+    tokens, profile = service.register(
+        db, payload.name, payload.email, payload.password
+    )
+    return RegisterResponse(
+        user=profile,  # type: ignore[arg-type]
+        access_token=tokens["access_token"] if tokens else None,
+        refresh_token=tokens["refresh_token"] if tokens else None,
+        expires_in=tokens["expires_in"] if tokens else None,
+        requires_email_confirmation=tokens is None,
+    )
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     credentials: BearerCredentials,
-    _: CurrentUser = Depends(get_current_user),
+    _: CurrentUser,
 ) -> Response:
     service.logout(credentials.credentials)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
