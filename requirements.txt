@@ -15,7 +15,7 @@ alembic>=1.13
 supabase>=2.9
 
 # ===== Autenticação / JWT =====
-pyjwt>=2.9
+pyjwt[crypto]>=2.9              # extra `crypto` instala `cryptography`, necessário para ES256/RS256
 
 # ===== Utilitários =====
 python-multipart>=0.0.12       # upload de arquivos
