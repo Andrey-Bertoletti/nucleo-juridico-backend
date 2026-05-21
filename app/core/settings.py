@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,6 +40,27 @@ class Settings(BaseSettings):
     # --- JWT ---
     JWT_ALGORITHM: str = "HS256"
     JWT_AUDIENCE: str = "authenticated"
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _ensure_psycopg_driver(cls, value: str) -> str:
+        """Garante que o driver psycopg3 seja usado pelo SQLAlchemy.
+
+        Strings copiadas do Supabase vêm como `postgresql://...`. Sem o
+        prefixo `+psycopg`, o SQLAlchemy tenta o driver `psycopg2` (não
+        instalado) e o serviço quebra na primeira conexão. Aqui fazemos
+        o ajuste automático.
+        """
+        if value.startswith("postgresql://"):
+            return "postgresql+psycopg://" + value[len("postgresql://") :]
+        if value.startswith("postgres://"):  # alias usado por algumas plataformas
+            return "postgresql+psycopg://" + value[len("postgres://") :]
+        return value
+
+    @field_validator("SUPABASE_URL")
+    @classmethod
+    def _strip_trailing_slash(cls, value: str) -> str:
+        return value.rstrip("/")
 
     @property
     def cors_origins_list(self) -> list[str]:

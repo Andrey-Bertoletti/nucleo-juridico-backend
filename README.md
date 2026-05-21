@@ -1,139 +1,143 @@
 # nucleo-juridico-backend
 
-Backend (API REST) do **Sistema de Gestão de Atendimento Jurídico** — responsável por expor os recursos de atendimento, clientes/assistidos, triagem, documentos, orientação de professores e acompanhamento de casos.
+Backend (API REST) do **Sistema de Gestão de Atendimento Jurídico (NPJ-ITES)** — responsável por atendimento, clientes/assistidos, triagem, documentos, orientação de professores, agenda de retornos e relatórios.
 
 ---
+
+## Descrição
+
+O sistema substitui as planilhas e cadernos físicos do Núcleo de Práticas Jurídicas. Centraliza atendimentos, registra triagem, controla documentos no Supabase Storage, organiza a orientação de professores, mantém agenda de retornos e gera relatórios.
+
+## Objetivo
+
+Oferecer uma API segura, com escopo automático por perfil (aluno, professor, coordenação), rastreabilidade completa via histórico append-only e integração com Supabase Auth + Storage.
 
 ## Stack
 
-- **Python 3.11+**
-- **FastAPI** (framework web)
-- **Uvicorn** (ASGI server)
-- **SQLAlchemy** + **Alembic** (ORM e migrações)
-- **Pydantic v2** (validação e schemas)
-- **PostgreSQL** gerenciado pelo **Supabase**
-- **Supabase Storage** para documentos
-- Autenticação via **Supabase Auth** (validação de JWT)
+- **Python 3.12**
+- **FastAPI** + **Uvicorn** (ASGI)
+- **SQLAlchemy 2.0** + **psycopg 3** (PostgreSQL)
+- **Pydantic v2** / **pydantic-settings**
+- **Supabase** (Auth + Storage + Postgres)
+- **PyJWT[crypto]** (validação HS256 e ES256/RS256 via JWKS)
 
----
+## Funcionalidades (MVP)
 
-## Estrutura de pastas
+- Auth: login/logout/me/register via Supabase Auth (JWT)
+- CRUD de clientes/assistidos com validação de CPF (dígitos verificadores)
+- Atendimentos com 10 status, encaminhamento, histórico granular
+- Triagem 1:1 por atendimento
+- Upload de documentos no Supabase Storage (bucket privado, signed URLs)
+- Orientações com 4 decisões que disparam transição de status
+- Agenda de retornos (lista + calendário)
+- Dashboard + relatórios com escopo por perfil
+- Administração (usuários, áreas jurídicas, tipos de demanda)
+
+## Perfis de acesso
+
+| Perfil | Capacidades |
+|---|---|
+| `aluno_estagiario` | Cadastra cliente, abre atendimento, preenche triagem, anexa documento, encaminha ao professor; vê apenas o que é responsável |
+| `professor_orientador` | Recebe casos, analisa, registra orientação com decisão; vê apenas casos sob sua orientação |
+| `admin_coordenacao` | Visão completa; CRUD de usuários, áreas e tipos de demanda; remove documentos; muda status de qualquer atendimento |
+
+## Estrutura
 
 ```
 nucleo-juridico-backend/
 ├── app/
-│   ├── main.py         # Entrada da aplicação FastAPI
-│   ├── core/           # Configuração, settings, segurança, dependências globais
-│   ├── modules/        # Módulos de domínio (rotas + lógica por feature)
-│   ├── database/       # Sessão do banco, modelos ORM, migrações
-│   ├── schemas/        # Schemas Pydantic (request/response)
-│   ├── services/       # Regras de negócio reutilizáveis e integrações externas
-│   └── utils/          # Funções utilitárias genéricas
+│   ├── main.py                  # FastAPI app, CORS, exception handlers, routers
+│   ├── core/
+│   │   ├── settings.py          # pydantic-settings + auto-fix DATABASE_URL
+│   │   ├── security.py          # decode_supabase_jwt (HS256 e ES256/RS256)
+│   │   ├── dependencies.py      # get_current_user, require_admin/teacher/student
+│   │   └── exceptions.py        # handler global 500
+│   ├── database/
+│   │   └── session.py           # engine + SessionLocal + Base + get_db
+│   ├── services/
+│   │   ├── supabase_client.py   # clientes anon e admin (cacheados)
+│   │   └── history.py           # helper central de auditoria
+│   └── modules/                 # módulos de domínio
+│       ├── auth/                # login/register/logout/me
+│       ├── users/               # CRUD de usuários
+│       ├── admin/               # /admin/* (usuários, áreas, tipos)
+│       ├── clients/             # CRUD + histórico
+│       ├── attendances/         # 10 status, send-to-teacher, histórico
+│       ├── triage/              # ficha 1:1
+│       ├── documents/           # upload Storage + signed URL
+│       ├── orientations/        # /teacher/cases + decisões
+│       ├── appointments/        # agenda (lista + calendário)
+│       ├── catalogs/            # legal_areas, demand_types, teachers, students
+│       └── reports/             # dashboard + 7 relatórios
+├── scripts/
+│   └── seed_users.py            # cria admin + professor de exemplo
+├── supabase/
+│   └── migrations/              # 8 migrations
 ├── .env.example
-├── .gitignore
-├── PROJECT_SCOPE.md
-├── requirements.txt
-└── README.md
+├── render.yaml                  # blueprint do Render
+├── runtime.txt                  # Python 3.12.5
+└── requirements.txt
 ```
 
-### Convenções por pasta
+## Como rodar localmente
 
-| Pasta         | Responsabilidade                                                                 |
-|---------------|----------------------------------------------------------------------------------|
-| `main.py`     | Cria a instância FastAPI, registra middlewares e inclui os routers de `modules/`. |
-| `core/`       | `settings` (env vars), `security` (JWT/Supabase), dependências de injeção comuns. |
-| `modules/`    | Cada subpasta = um domínio (`atendimento`, `clientes`, `casos`...) com `router.py`, `service.py`, etc. |
-| `database/`   | `session.py`, `base.py`, modelos SQLAlchemy e diretório de migrações Alembic.    |
-| `schemas/`    | Schemas Pydantic globais. Schemas específicos podem viver dentro do módulo.       |
-| `services/`   | Lógica de negócio compartilhada entre módulos e integrações (Supabase Storage, e-mail, etc.). |
-| `utils/`      | Helpers puros (formatadores, parsers, validações genéricas).                      |
-
----
-
-## Como rodar (após o setup do projeto)
-
-```bash
-# 1) criar e ativar venv (Windows PowerShell)
+```powershell
+# 1) criar venv
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
 # 2) instalar dependências
 pip install -r requirements.txt
 
-# 3) copiar variáveis de ambiente
+# 3) copiar e preencher variáveis
 copy .env.example .env
-# edite o .env com as credenciais reais
 
-# 4) rodar em modo desenvolvimento
+# 4) aplicar migrations (via Supabase CLI)
+supabase db push
+
+# 5) (opcional) criar usuários de seed
+python scripts/seed_users.py
+
+# 6) rodar dev server
 uvicorn app.main:app --reload
 ```
 
-A API ficará disponível em `http://localhost:8000`. A documentação interativa em `http://localhost:8000/docs`.
+API em `http://localhost:8000`. Docs em `/docs`.
 
----
+## Variáveis de ambiente
 
-## Deploy no Render
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `APP_ENV` | não | `development` ou `production`. Default `development`. |
+| `APP_DEBUG` | não | `true` em dev exibe stack trace nos erros 500. Default `true`. |
+| `DATABASE_URL` | **sim** | Connection string do Postgres (use o **Transaction Pooler** do Supabase). O prefixo `postgresql://` é convertido automaticamente para `postgresql+psycopg://`. |
+| `SUPABASE_URL` | **sim** | URL do projeto Supabase. |
+| `SUPABASE_ANON_KEY` | **sim** | Chave pública (anon) — usada em `sign_in_with_password` e em `sign_up`. |
+| `SUPABASE_SERVICE_ROLE_KEY` | **sim** | Chave secreta — usada para criar usuários e gerar signed URLs do Storage. **Nunca exponha no frontend.** |
+| `SUPABASE_JWT_SECRET` | **sim** | JWT Secret do Supabase — usado para validar tokens HS256 (legacy). |
+| `SUPABASE_STORAGE_BUCKET` | não | Nome do bucket. Default `documentos`. |
+| `CORS_ORIGINS` | **sim** | Lista de origens permitidas separadas por vírgula. Ex.: `https://nucleo-juridico-frontend.vercel.app`. |
+| `CORS_ORIGIN_REGEX` | não | Regex para liberar previews do Vercel. Ex.: `^https://nucleo-juridico-frontend(-[\w-]+)?\.vercel\.app$`. |
+| `JWT_ALGORITHM` | não | Default `HS256`. O backend detecta ES256/RS256 automaticamente via JWKS. |
+| `JWT_AUDIENCE` | não | Default `authenticated` (audience dos tokens do Supabase). |
 
-O projeto já vem com [`render.yaml`](./render.yaml) e [`runtime.txt`](./runtime.txt) preparados — basta seguir os passos abaixo.
+> Veja [`.env.example`](./.env.example) e o checklist em [DEPLOY.md](./DEPLOY.md).
 
-### Pré-requisitos
+## Scripts disponíveis
 
-1. Repositório no GitHub (✅ já configurado: `Andrey-Bertoletti/nucleo-juridico-backend`).
-2. Migrações aplicadas no Supabase (`supabase db push`).
-3. Coleta das credenciais que ficarão como variáveis de ambiente.
-
-### Variáveis de ambiente que você vai precisar
-
-| Variável | Onde encontrar |
+| Comando | Descrição |
 |---|---|
-| `DATABASE_URL` | Supabase → Project Settings → **Database** → "Connection string" → **Transaction pooler** (porta 6543). Prefixar com `postgresql+psycopg://` e trocar `[YOUR-PASSWORD]` pela senha do banco. |
-| `SUPABASE_URL` | Supabase → Project Settings → API → "Project URL". |
-| `SUPABASE_ANON_KEY` | Supabase → Project Settings → API → "anon public". |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → "service_role" (segredo!). |
-| `SUPABASE_JWT_SECRET` | Supabase → Project Settings → API → "JWT Secret". |
-| `CORS_ORIGINS` | URL(s) do frontend, separadas por vírgula. Ex.: `https://nucleo-juridico-frontend.vercel.app`. |
-
-> Use a Transaction pooler (porta 6543) e **não** a conexão direta (porta 5432) — o free do Render dorme e reabre conexões com frequência.
-
-### Passo a passo via dashboard (recomendado)
-
-1. Acesse [dashboard.render.com](https://dashboard.render.com) e clique em **New + → Blueprint**.
-2. Conecte sua conta do GitHub e selecione o repositório `nucleo-juridico-backend`.
-3. O Render detecta o `render.yaml` e mostra o serviço `nucleo-juridico-backend`. Clique **Apply**.
-4. Preencha cada variável marcada como **"Set value"** (todas as `sync: false` do blueprint). As que têm `value:` no YAML já vêm preenchidas.
-5. Clique **Create Resources**. O primeiro build leva ~3-5 min.
-6. Quando finalizar, copie a URL final (ex.: `https://nucleo-juridico-backend.onrender.com`) — você vai precisar para configurar o frontend.
-
-### Passo a passo manual (sem blueprint)
-
-Se preferir não usar o `render.yaml`:
-
-1. **New + → Web Service** → conectar o repositório.
-2. Configurar:
-   - **Runtime**: `Python 3`
-   - **Build Command**: `pip install --upgrade pip && pip install -r requirements.txt`
-   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips=*`
-   - **Health Check Path**: `/health`
-3. Em **Environment**, adicionar todas as variáveis listadas acima + `APP_ENV=production`, `APP_DEBUG=false`, `JWT_ALGORITHM=HS256`, `JWT_AUDIENCE=authenticated`.
-4. **Create Web Service**.
-
-### Após o deploy
-
-1. **Testar a saúde**: abrir `https://SEU-SERVICO.onrender.com/health` — deve retornar `{"status":"ok"}`.
-2. **Testar a documentação**: abrir `/docs` — Swagger UI com todas as rotas.
-3. **Conectar o frontend**: no projeto da Vercel, definir `NEXT_PUBLIC_API_BASE_URL=https://SEU-SERVICO.onrender.com` e redeployar o frontend.
-4. **Voltar no CORS**: ajustar `CORS_ORIGINS` no Render para incluir o domínio final do frontend.
-5. **Criar usuários iniciais**: rodar localmente `python scripts/seed_users.py` apontando o `.env` para os dados de produção (ou criar manualmente pelo Supabase Studio).
-
-### Observações sobre o plano free
-
-- O serviço **dorme após ~15 min sem tráfego**. A primeira request acorda o servidor (cold start de ~30 s).
-- Sem disco persistente — não armazene arquivos no FS do Render. Documentos vão para o Supabase Storage.
-- Para produção sem cold start, faça upgrade para o plano **Starter** ($7/mês).
-
----
+| `uvicorn app.main:app --reload` | Dev server com hot-reload |
+| `uvicorn app.main:app --host 0.0.0.0 --port $PORT` | Start de produção |
+| `python scripts/seed_users.py` | Cria os usuários `admin@ites.edu.br` e `professor@ites.edu.br` |
+| `supabase db push` | Aplica as migrations no Supabase remoto |
+| `supabase db reset` | Reseta o banco local e aplica migrations |
 
 ## Documentação relacionada
 
-- [`PROJECT_SCOPE.md`](./PROJECT_SCOPE.md) — escopo, perfis de usuário e funcionalidades planejadas.
-- Repositório do frontend: `nucleo-juridico-frontend`.
+- [DEPLOY.md](./DEPLOY.md) — passo a passo para subir backend, frontend e Supabase
+- [DATABASE.md](./DATABASE.md) — schema, migrations e tabelas
+- [API.md](./API.md) — lista de endpoints com permissões
+- [MVP_CHECKLIST.md](./MVP_CHECKLIST.md) — o que foi entregue
+- [PRESENTATION.md](./PRESENTATION.md) — roteiro de apresentação
+- [PROJECT_SCOPE.md](./PROJECT_SCOPE.md) — escopo original

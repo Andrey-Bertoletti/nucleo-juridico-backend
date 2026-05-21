@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.exceptions import install_exception_handlers
 from app.core.settings import settings
 from app.modules.admin.router import router as admin_router
 from app.modules.appointments.router import router as appointments_router
@@ -36,6 +37,8 @@ if settings.CORS_ORIGIN_REGEX:
     _cors_kwargs["allow_origin_regex"] = settings.CORS_ORIGIN_REGEX
 
 app.add_middleware(CORSMiddleware, **_cors_kwargs)
+
+install_exception_handlers(app)
 
 app.include_router(auth_router)
 app.include_router(users_router)
