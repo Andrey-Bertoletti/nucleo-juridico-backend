@@ -7,7 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import text
+from sqlalchemy import Integer, String, bindparam, text
 from sqlalchemy.orm import Session
 
 from app.modules.clients.models import Client, ClientHistory, Document
@@ -107,6 +107,19 @@ def list_clients(
          order by c.created_at desc
          limit :limit offset :offset
         """
+    ).bindparams(
+        # Tipar os parâmetros explicitamente é necessário para o psycopg v3 —
+        # sem isso, parâmetros que chegam como NULL geram AmbiguousParameter.
+        bindparam("search", type_=String),
+        bindparam("search_pat", type_=String),
+        bindparam("cpf", type_=String),
+        bindparam("phone", type_=String),
+        bindparam("phone_pat", type_=String),
+        bindparam("city", type_=String),
+        bindparam("city_pat", type_=String),
+        bindparam("status_filter", type_=String),
+        bindparam("limit", type_=Integer),
+        bindparam("offset", type_=Integer),
     )
 
     rows = db.execute(

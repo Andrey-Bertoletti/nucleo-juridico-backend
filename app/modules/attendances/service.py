@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status as http_status
-from sqlalchemy import text
+from sqlalchemy import Boolean, Date, Integer, String, Uuid, bindparam, text
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER
@@ -160,6 +160,22 @@ def list_attendances(
         order by a.urgency desc, a.created_at desc
         limit :limit offset :offset
         """
+    ).bindparams(
+        # Tipar os parâmetros explicitamente — psycopg v3 não infere tipo
+        # quando o parâmetro só aparece como NULL.
+        bindparam("status_filter", type_=String),
+        bindparam("legal_area_id", type_=Uuid),
+        bindparam("demand_type_id", type_=Uuid),
+        bindparam("student_id", type_=Uuid),
+        bindparam("teacher_id", type_=Uuid),
+        bindparam("client_id", type_=Uuid),
+        bindparam("urgency", type_=Boolean),
+        bindparam("from_date", type_=Date),
+        bindparam("to_date", type_=Date),
+        bindparam("search", type_=String),
+        bindparam("search_pat", type_=String),
+        bindparam("limit", type_=Integer),
+        bindparam("offset", type_=Integer),
     )
     rows = db.execute(
         sql,
