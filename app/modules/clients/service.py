@@ -271,14 +271,72 @@ def deactivate_client(
 # ---------------------------------------------------------------------------
 # Sub-recursos
 # ---------------------------------------------------------------------------
-def list_history(db: Session, client_id: UUID) -> list[ClientHistory]:
-    get_client(db, client_id)  # 404 se não existir
-    return (
-        db.query(ClientHistory)
-        .filter(ClientHistory.client_id == client_id)
-        .order_by(ClientHistory.created_at.desc())
-        .all()
+def list_history(
+    db: Session, client_id: UUID, current_user: Profile
+) -> list[dict[str, Any]]:
+    """Histórico do cliente com nome do usuário e escopo por perfil.
+
+    - Admin: vê tudo.
+    - Aluno: precisa ter pelo menos um atendimento desse cliente.
+    - Professor: idem (teacher_id).
+    """
+    get_client(db, client_id)
+    _ensure_can_view_client_history(db, client_id, current_user)
+
+    sql = text(
+        """
+        select
+          h.id,
+          h.client_id,
+          h.user_id,
+          p.name        as user_name,
+          h.event_type,
+          h.description,
+          h.changes,
+          h.created_at
+        from client_history h
+        left join profiles p on p.id = h.user_id
+        where h.client_id = :client_id
+        order by h.created_at desc
+        """
     )
+    rows = db.execute(sql, {"client_id": client_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def _ensure_can_view_client_history(
+    db: Session, client_id: UUID, user: Profile
+) -> None:
+    from app.core.dependencies import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER
+
+    if user.role == ROLE_ADMIN:
+        return
+    if user.role == ROLE_STUDENT:
+        link_field = "student_id"
+    elif user.role == ROLE_TEACHER:
+        link_field = "teacher_id"
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado.",
+        )
+
+    exists_sql = text(
+        f"""
+        select 1 from attendances
+         where client_id = :client_id
+           and {link_field} = :user_id
+         limit 1
+        """
+    )
+    exists = db.execute(
+        exists_sql, {"client_id": client_id, "user_id": user.id}
+    ).first()
+    if exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem acesso ao histórico deste cliente.",
+        )
 
 
 # list_documents foi removido — agora vive no módulo `documents`.

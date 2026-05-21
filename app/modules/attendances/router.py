@@ -135,6 +135,7 @@ def send_attendance_to_teacher(
 def get_attendance_history(
     attendance_id: UUID,
     db: DbSession,
-    _current: CurrentUser,
+    current_user: CurrentUser,
 ) -> list[AttendanceHistoryItem]:
-    return service.list_history(db, attendance_id)  # type: ignore[return-value]
+    rows = service.list_history(db, attendance_id, current_user)
+    return [AttendanceHistoryItem(**r) for r in rows]

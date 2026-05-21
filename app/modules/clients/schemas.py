@@ -162,11 +162,10 @@ class ClientListItem(BaseModel):
 
 
 class ClientHistoryItem(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: UUID
     client_id: UUID
     user_id: UUID | None
+    user_name: str | None
     event_type: ClientHistoryEvent
     description: str | None
     changes: dict[str, Any] | None

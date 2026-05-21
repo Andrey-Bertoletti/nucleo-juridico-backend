@@ -211,13 +211,51 @@ def get_attendance(db: Session, attendance_id: UUID) -> Attendance:
     return a
 
 
-def list_history(db: Session, attendance_id: UUID) -> list[AttendanceHistory]:
-    get_attendance(db, attendance_id)  # 404 se não existe
-    return (
-        db.query(AttendanceHistory)
-        .filter(AttendanceHistory.attendance_id == attendance_id)
-        .order_by(AttendanceHistory.created_at.desc())
-        .all()
+def list_history(
+    db: Session,
+    attendance_id: UUID,
+    current_user: Profile,
+) -> list[dict[str, Any]]:
+    """Lista eventos do histórico do atendimento já com o nome do usuário.
+
+    Aplica escopo por perfil: aluno só vê histórico dos seus atendimentos,
+    professor só dos casos sob sua orientação, admin vê todos.
+    """
+    attendance = get_attendance(db, attendance_id)
+    _ensure_can_view_history(attendance, current_user)
+
+    sql = text(
+        """
+        select
+          h.id,
+          h.attendance_id,
+          h.user_id,
+          p.name        as user_name,
+          h.event_type,
+          h.description,
+          h.old_status,
+          h.new_status,
+          h.created_at
+        from attendance_history h
+        left join profiles p on p.id = h.user_id
+        where h.attendance_id = :attendance_id
+        order by h.created_at desc
+        """
+    ).bindparams(bindparam("attendance_id", type_=Uuid))
+    rows = db.execute(sql, {"attendance_id": attendance_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def _ensure_can_view_history(attendance: Attendance, user: Profile) -> None:
+    if user.role == ROLE_ADMIN:
+        return
+    if user.role == ROLE_STUDENT and attendance.student_id == user.id:
+        return
+    if user.role == ROLE_TEACHER and attendance.teacher_id == user.id:
+        return
+    raise HTTPException(
+        status_code=http_status.HTTP_403_FORBIDDEN,
+        detail="Você não tem acesso ao histórico deste atendimento.",
     )
 
 

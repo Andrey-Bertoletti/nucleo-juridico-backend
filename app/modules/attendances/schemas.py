@@ -111,11 +111,10 @@ class AttendanceListItem(BaseModel):
 
 
 class AttendanceHistoryItem(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: UUID
     attendance_id: UUID
     user_id: UUID | None
+    user_name: str | None
     event_type: HistoryEventType
     description: str | None
     old_status: AttendanceStatus | None

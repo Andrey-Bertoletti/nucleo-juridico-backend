@@ -119,9 +119,10 @@ def delete_client(
 def get_client_history(
     client_id: UUID,
     db: DbSession,
-    _current: CurrentUser,
+    current_user: CurrentUser,
 ) -> list[ClientHistoryItem]:
-    return service.list_history(db, client_id)  # type: ignore[return-value]
+    rows = service.list_history(db, client_id, current_user)
+    return [ClientHistoryItem(**r) for r in rows]
 
 
 # GET /clients/{client_id}/documents foi movido para o módulo `documents`.
