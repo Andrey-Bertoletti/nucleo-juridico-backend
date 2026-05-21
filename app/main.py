@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.settings import settings
+from app.modules.admin.router import router as admin_router
 from app.modules.appointments.router import router as appointments_router
 from app.modules.attendances.router import router as attendances_router
 from app.modules.auth.router import router as auth_router
@@ -46,6 +47,7 @@ app.include_router(orientations_router)
 app.include_router(appointments_router)
 app.include_router(catalogs_router)
 app.include_router(reports_router)
+app.include_router(admin_router)
 
 
 @app.get("/health", tags=["health"])
