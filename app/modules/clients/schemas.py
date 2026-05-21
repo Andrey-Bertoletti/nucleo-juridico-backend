@@ -5,7 +5,14 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from app.utils.validators import (
+    is_valid_birth_date,
+    is_valid_cpf,
+    is_valid_phone,
+    is_valid_rg,
+)
 
 
 MaritalStatus = Literal[
@@ -23,12 +30,68 @@ ClientHistoryEvent = Literal[
 ]
 
 
-class ClientCreate(BaseModel):
+# ---------------------------------------------------------------------------
+# Mixin com validações reaproveitáveis entre Create e Update
+# ---------------------------------------------------------------------------
+class _ClientFieldsValidatorsMixin:
+    @field_validator("cpf")
+    @classmethod
+    def _validate_cpf(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not is_valid_cpf(v):
+            raise ValueError("CPF inválido — confira os dígitos verificadores.")
+        return v
+
+    @field_validator("rg")
+    @classmethod
+    def _validate_rg(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        if not is_valid_rg(v):
+            raise ValueError("RG inválido — informe um número válido (5 a 14 caracteres).")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        if not is_valid_phone(v):
+            raise ValueError("Telefone inválido — informe DDD + número (10 ou 11 dígitos).")
+        return v
+
+    @field_validator("birth_date")
+    @classmethod
+    def _validate_birth_date(cls, v: date | None) -> date | None:
+        if v is None:
+            return None
+        if not is_valid_birth_date(v):
+            raise ValueError(
+                "Data de nascimento inválida — deve estar entre 01/01/1900 e hoje."
+            )
+        return v
+
+    @field_validator("state")
+    @classmethod
+    def _validate_state(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        v = v.strip().upper()
+        if len(v) != 2 or not v.isalpha():
+            raise ValueError("UF inválida — informe as 2 letras (ex.: SP, RJ).")
+        return v
+
+
+# ---------------------------------------------------------------------------
+# Create / Update
+# ---------------------------------------------------------------------------
+class ClientCreate(_ClientFieldsValidatorsMixin, BaseModel):
     full_name: str = Field(min_length=3, max_length=200)
     cpf: str = Field(
         min_length=11,
         max_length=14,
-        description="Aceita com ou sem máscara — normalizado para 11 dígitos.",
+        description="Aceita com ou sem máscara — validado por dígito verificador.",
     )
     rg: str | None = Field(default=None, max_length=30)
     birth_date: date | None = None
@@ -40,11 +103,11 @@ class ClientCreate(BaseModel):
     state: str | None = Field(default=None, min_length=2, max_length=2)
     marital_status: MaritalStatus | None = None
     profession: str | None = Field(default=None, max_length=120)
-    family_income: Decimal | None = Field(default=None, ge=0)
-    notes: str | None = None
+    family_income: Decimal | None = Field(default=None, ge=0, le=10_000_000)
+    notes: str | None = Field(default=None, max_length=4000)
 
 
-class ClientUpdate(BaseModel):
+class ClientUpdate(_ClientFieldsValidatorsMixin, BaseModel):
     full_name: str | None = Field(default=None, min_length=3, max_length=200)
     cpf: str | None = Field(default=None, min_length=11, max_length=14)
     rg: str | None = Field(default=None, max_length=30)
@@ -57,10 +120,13 @@ class ClientUpdate(BaseModel):
     state: str | None = Field(default=None, min_length=2, max_length=2)
     marital_status: MaritalStatus | None = None
     profession: str | None = Field(default=None, max_length=120)
-    family_income: Decimal | None = Field(default=None, ge=0)
-    notes: str | None = None
+    family_income: Decimal | None = Field(default=None, ge=0, le=10_000_000)
+    notes: str | None = Field(default=None, max_length=4000)
 
 
+# ---------------------------------------------------------------------------
+# Responses
+# ---------------------------------------------------------------------------
 class ClientResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
