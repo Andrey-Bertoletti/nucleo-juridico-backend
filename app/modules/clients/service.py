@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import Integer, String, bindparam, text
 from sqlalchemy.orm import Session
 
-from app.modules.clients.models import Client, ClientHistory, Document
+from app.modules.clients.models import Client, ClientHistory
 from app.modules.clients.schemas import ClientCreate, ClientUpdate
 from app.modules.users.models import Profile
 
@@ -281,11 +281,4 @@ def list_history(db: Session, client_id: UUID) -> list[ClientHistory]:
     )
 
 
-def list_documents(db: Session, client_id: UUID) -> list[Document]:
-    get_client(db, client_id)
-    return (
-        db.query(Document)
-        .filter(Document.client_id == client_id)
-        .order_by(Document.created_at.desc())
-        .all()
-    )
+# list_documents foi removido — agora vive no módulo `documents`.

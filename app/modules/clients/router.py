@@ -15,7 +15,6 @@ from app.core.dependencies import (
 from app.modules.clients import service
 from app.modules.clients.schemas import (
     ClientCreate,
-    ClientDocumentItem,
     ClientHistoryItem,
     ClientListItem,
     ClientResponse,
@@ -125,10 +124,4 @@ def get_client_history(
     return service.list_history(db, client_id)  # type: ignore[return-value]
 
 
-@router.get("/{client_id}/documents", response_model=list[ClientDocumentItem])
-def get_client_documents(
-    client_id: UUID,
-    db: DbSession,
-    _current: CurrentUser,
-) -> list[ClientDocumentItem]:
-    return service.list_documents(db, client_id)  # type: ignore[return-value]
+# GET /clients/{client_id}/documents foi movido para o módulo `documents`.

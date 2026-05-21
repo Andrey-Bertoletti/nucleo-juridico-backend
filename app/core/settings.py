@@ -32,6 +32,9 @@ class Settings(BaseSettings):
 
     # --- CORS ---
     CORS_ORIGINS: str = "http://localhost:3000"
+    # Regex opcional para liberar varias origens (ex.: previews do Vercel).
+    # Exemplo: r"^https://nucleo-juridico-frontend(-[\w-]+)?\.vercel\.app$"
+    CORS_ORIGIN_REGEX: str | None = None
 
     # --- JWT ---
     JWT_ALGORITHM: str = "HS256"
@@ -39,7 +42,12 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        # Normaliza cada origin removendo trailing slash, que browsers nunca enviam.
+        return [
+            o.strip().rstrip("/")
+            for o in self.CORS_ORIGINS.split(",")
+            if o.strip()
+        ]
 
 
 @lru_cache
