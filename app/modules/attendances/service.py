@@ -153,7 +153,8 @@ def list_attendances(
           and (:student_id is null     or a.student_id     = :student_id)
           and (:teacher_id is null     or a.teacher_id     = :teacher_id)
           and (:client_id is null      or a.client_id      = :client_id)
-          and (:urgency is null        or a.urgency        = :urgency)
+          and (cast(:urgency as boolean) is null
+               or a.urgency = cast(:urgency as boolean))
           and (:from_date is null      or a.created_at    >= :from_date)
           and (:to_date is null        or a.created_at    <= :to_date)
           and (:search is null         or c.full_name ilike :search_pat)
