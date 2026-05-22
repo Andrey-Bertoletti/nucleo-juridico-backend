@@ -1,16 +1,15 @@
-"""Rotas do módulo auth."""
+"""Rotas do módulo auth.
+
+Cadastro de usuários **não** é público: somente um `admin_coordenacao`
+pode criar contas via `POST /admin/users`. Esta decisão é intencional —
+o sistema lida com dados jurídicos sigilosos e o acesso é restrito.
+"""
 
 from fastapi import APIRouter, Response, status
 
 from app.core.dependencies import BearerCredentials, CurrentUser, DbSession
 from app.modules.auth import service
-from app.modules.auth.schemas import (
-    LoginRequest,
-    LoginResponse,
-    MeResponse,
-    RegisterRequest,
-    RegisterResponse,
-)
+from app.modules.auth.schemas import LoginRequest, LoginResponse, MeResponse
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -24,24 +23,6 @@ def login(payload: LoginRequest, db: DbSession) -> LoginResponse:
         refresh_token=tokens["refresh_token"],
         expires_in=tokens["expires_in"],
         user=profile,  # type: ignore[arg-type]
-    )
-
-
-@router.post(
-    "/register",
-    response_model=RegisterResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def register(payload: RegisterRequest, db: DbSession) -> RegisterResponse:
-    tokens, profile = service.register(
-        db, payload.name, payload.email, payload.password
-    )
-    return RegisterResponse(
-        user=profile,  # type: ignore[arg-type]
-        access_token=tokens["access_token"] if tokens else None,
-        refresh_token=tokens["refresh_token"] if tokens else None,
-        expires_in=tokens["expires_in"] if tokens else None,
-        requires_email_confirmation=tokens is None,
     )
 
 
