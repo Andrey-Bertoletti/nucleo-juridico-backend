@@ -18,4 +18,15 @@ class LoginResponse(BaseModel):
     user: UserResponse
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=10)
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
 MeResponse = UserResponse

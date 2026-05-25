@@ -5,6 +5,7 @@ que requer perfil `admin_coordenacao`. Não há cadastro público — o sistema
 gerencia dados jurídicos sigilosos.
 """
 
+import logging
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -12,6 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.modules.users.models import Profile
 from app.services.supabase_client import get_admin_client, get_anon_client
+
+
+logger = logging.getLogger("nucleo_juridico")
 
 
 def login(db: Session, email: str, password: str) -> tuple[dict, Profile]:
@@ -22,6 +26,9 @@ def login(db: Session, email: str, password: str) -> tuple[dict, Profile]:
             {"email": email, "password": password}
         )
     except Exception as exc:  # noqa: BLE001 — supabase pode lançar várias subclasses
+        # Mensagem genérica intencional: não diferenciamos "usuário não existe"
+        # de "senha errada" para não habilitar enumeração de contas.
+        logger.info("Login negado para %s.", email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="E-mail ou senha inválidos.",
@@ -41,9 +48,11 @@ def login(db: Session, email: str, password: str) -> tuple[dict, Profile]:
         .one_or_none()
     )
     if profile is None:
+        # Vazaríamos a existência da conta no Supabase Auth se respondêssemos
+        # algo diferente do login negado normal.
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Perfil de usuário não encontrado. Contate a coordenação.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="E-mail ou senha inválidos.",
         )
     if profile.status != "ativo":
         raise HTTPException(
@@ -59,6 +68,38 @@ def login(db: Session, email: str, password: str) -> tuple[dict, Profile]:
     return tokens, profile
 
 
+def refresh_session(refresh_token: str) -> dict:
+    """Troca um refresh_token por um novo par access/refresh.
+
+    Sem isso, o frontend precisa pedir nova senha ao usuário sempre que o
+    access_token (~1h) expira. Aqui delegamos ao Supabase, que emite um
+    novo par e revoga o anterior (se `enable_refresh_token_rotation=true`,
+    que é o default do projeto).
+    """
+    client = get_anon_client()
+    try:
+        result = client.auth.refresh_session(refresh_token)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Refresh token rejeitado.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessão expirada — entre novamente.",
+        ) from exc
+
+    session = getattr(result, "session", None)
+    if session is None or not getattr(session, "access_token", None):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessão inválida — entre novamente.",
+        )
+
+    return {
+        "access_token": session.access_token,
+        "refresh_token": session.refresh_token or refresh_token,
+        "expires_in": getattr(session, "expires_in", 3600),
+    }
+
+
 def logout(access_token: str) -> None:
     """Encerra a sessão no Supabase (revoga o refresh token).
 
@@ -70,3 +111,26 @@ def logout(access_token: str) -> None:
         admin.auth.admin.sign_out(access_token)
     except Exception:  # noqa: BLE001
         return
+
+
+def request_password_reset(email: str, redirect_to: str | None = None) -> None:
+    """Dispara o e-mail de reset de senha via Supabase.
+
+    SEMPRE retorna `None` (mesmo se o e-mail não existir) — chamadores devem
+    apresentar mensagem genérica para evitar enumeração de contas.
+
+    Observação: o e-mail só é enviado de fato se o projeto Supabase estiver
+    com SMTP configurado (ver `supabase/config.toml` → `[auth.email.smtp]`)
+    e o template de "Reset password" customizado. Em ambiente local com
+    inbucket, o e-mail aparece no Mailpit.
+    """
+    try:
+        client = get_anon_client()
+        if redirect_to:
+            client.auth.reset_password_for_email(
+                email, options={"redirect_to": redirect_to}
+            )
+        else:
+            client.auth.reset_password_for_email(email)
+    except Exception:  # noqa: BLE001 — best-effort
+        logger.info("Tentativa de reset de senha (silenciada).")
