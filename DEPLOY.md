@@ -66,6 +66,64 @@ Em **Authentication → Providers → Email**:
 - Para desenvolvimento, desabilite **Confirm email** (mais rápido testar).
 - Para produção, mantenha habilitado e configure o template de e-mail.
 
+### 1.4.1. SMTP custom (OBRIGATÓRIO para reset de senha funcionar)
+
+> O Supabase usa um SMTP interno de teste que entrega **apenas** para e-mails de membros do projeto e tem rate-limit de ~4 e-mails/hora. Sem SMTP custom, **o reset de senha não chega para usuários finais** — esse é o motivo #1 de "mandei o link e ele nunca recebeu".
+
+Em **Project Settings → Authentication → SMTP Settings → Enable Custom SMTP**:
+
+| Campo | Valor de exemplo (Resend) |
+|---|---|
+| **Sender email** | `no-reply@seu-dominio.com.br` |
+| **Sender name** | `Núcleo de Práticas Jurídicas — ITES` |
+| **Host** | `smtp.resend.com` |
+| **Port** | `587` (STARTTLS) ou `465` (SSL) |
+| **Username** | `resend` |
+| **Password** | API key do Resend (`re_xxx…`) |
+
+> Provedores recomendados (free tier suficiente para o volume do NPJ): **Resend**, **SendGrid**, **Brevo**, **Postmark**. Gmail/Outlook **não** funcionam — eles bloqueiam SMTP autenticado de serviços não-Google/MS.
+
+Em **Authentication → Rate Limits**:
+- **Emails sent**: subir de 4/hora para ao menos 30/hora (depois do SMTP custom o limite default cai para o do provedor).
+
+### 1.4.2. URLs de redirecionamento
+
+Em **Authentication → URL Configuration**:
+
+- **Site URL**: URL final do frontend Vercel (ex.: `https://nucleo-juridico-frontend.vercel.app`).
+- **Redirect URLs** (adicionar TODAS as variações):
+  - `https://nucleo-juridico-frontend.vercel.app/reset-password`
+  - `https://nucleo-juridico-frontend.vercel.app/**` (libera previews da Vercel)
+  - `http://localhost:3000/reset-password` (desenvolvimento)
+
+> **Se a Redirect URL não estiver na allowlist, o Supabase ignora o `redirect_to` e manda o usuário para a Site URL** — o link "Redefinir senha" abre a home em vez do formulário. Sintoma clássico de allowlist faltando.
+
+### 1.4.3. Templates de e-mail (Reset password e Confirm signup)
+
+Em **Authentication → Email Templates**:
+
+- **Reset Password** — verifique que o link aponta para `{{ .ConfirmationURL }}` (não para `{{ .SiteURL }}` puro). O backend já passa `redirect_to=…/reset-password`, então o `ConfirmationURL` resolve para a página certa.
+- **Confirm signup** — só relevante se um dia habilitar self-signup; hoje o cadastro é só pelo admin.
+
+Sugestão de assunto/conteúdo PT-BR para **Reset Password**:
+
+```
+Assunto: Redefinição de senha — NPJ-ITES
+
+Olá,
+
+Recebemos uma solicitação para redefinir a senha da sua conta no
+Núcleo de Práticas Jurídicas (ITES).
+
+Para continuar, clique no link abaixo (válido por 1 hora):
+
+{{ .ConfirmationURL }}
+
+Se você não solicitou esta redefinição, ignore este e-mail.
+
+— Núcleo de Práticas Jurídicas / ITES
+```
+
 ### 1.5. Coletar credenciais
 
 Em **Project Settings → API**:

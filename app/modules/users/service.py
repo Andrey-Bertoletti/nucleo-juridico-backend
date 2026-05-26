@@ -48,6 +48,31 @@ def _delete_supabase_auth_user(auth_user_id: str) -> None:
         )
 
 
+def _send_welcome_password_email(email: str) -> None:
+    """Envia ao usuário recém-criado um link para definir a própria senha.
+
+    Usa o fluxo de "reset password" do Supabase (mesmo do esqueci-senha),
+    o que tem duas vantagens:
+      1. O admin não precisa transmitir a senha provisória por canal seguro.
+      2. O link cai no template "Reset password" do Dashboard, que já está
+         localizado em PT-BR no projeto.
+
+    Como o e-mail só será de fato entregue se o SMTP do Supabase estiver
+    configurado, esta função é best-effort: falhas são apenas logadas e
+    não derrubam o cadastro (o admin ainda pode comunicar a senha provisória).
+    """
+    try:
+        anon = get_anon_client()
+        anon.auth.reset_password_for_email(email)
+        logger.info("E-mail de boas-vindas (set password) enviado para %s.", email)
+    except Exception:  # noqa: BLE001 — best-effort
+        logger.exception(
+            "Falha ao enviar e-mail de boas-vindas para %s "
+            "(verifique SMTP no Dashboard do Supabase).",
+            email,
+        )
+
+
 def create_user(db: Session, payload: UserCreate) -> Profile:
     """Cria a conta no Supabase Auth e o profile correspondente.
 
@@ -67,6 +92,11 @@ def create_user(db: Session, payload: UserCreate) -> Profile:
             {
                 "email": payload.email,
                 "password": payload.password,
+                # `email_confirm=True` evita que o Supabase exija que o usuário
+                # confirme o e-mail antes do primeiro login. A senha vem do admin,
+                # então não há necessidade de double-opt-in. O e-mail de boas-vindas
+                # (com link para o usuário redefinir a senha) é disparado logo
+                # abaixo, separadamente, e não depende dessa confirmação.
                 "email_confirm": True,
                 "user_metadata": {"name": payload.name, "role": payload.role},
             }
@@ -89,6 +119,12 @@ def create_user(db: Session, payload: UserCreate) -> Profile:
         )
 
     auth_user_id_str = str(auth_user_id)
+
+    # E-mail de boas-vindas: dispara um link de recovery para que o usuário
+    # crie a própria senha. Best-effort — se o SMTP do Supabase falhar (ou
+    # estourar rate-limit), o usuário ainda pode logar com a senha provisória
+    # informada pelo admin e usar o fluxo "esqueci minha senha" depois.
+    _send_welcome_password_email(payload.email)
 
     # A partir daqui qualquer falha exige rollback compensatório no auth.users.
     try:

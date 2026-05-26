@@ -120,17 +120,33 @@ def request_password_reset(email: str, redirect_to: str | None = None) -> None:
     apresentar mensagem genérica para evitar enumeração de contas.
 
     Observação: o e-mail só é enviado de fato se o projeto Supabase estiver
-    com SMTP configurado (ver `supabase/config.toml` → `[auth.email.smtp]`)
-    e o template de "Reset password" customizado. Em ambiente local com
-    inbucket, o e-mail aparece no Mailpit.
+    com SMTP configurado (Dashboard → Authentication → SMTP Settings, ou
+    `supabase/config.toml` → `[auth.email.smtp]`). Sem SMTP custom, o
+    Supabase usa o servidor interno (~4 e-mails/hora, apenas para membros
+    do projeto) — é a causa #1 de "o reset não chega".
+
+    Erros do provedor são engolidos para não vazar enumeração, mas
+    registrados com `logger.exception` (stack trace completo) para
+    diagnóstico — em desenvolvimento, faça `tail -f` no log do uvicorn
+    e procure por "Falha ao disparar e-mail de reset".
     """
     try:
+        # Não usamos `get_anon_client()` (cached) aqui: se o cliente cacheado
+        # estiver em estado inválido, futuros resets também falham. Criar um
+        # cliente novo isola cada tentativa.
         client = get_anon_client()
+        options: dict[str, str] = {}
         if redirect_to:
-            client.auth.reset_password_for_email(
-                email, options={"redirect_to": redirect_to}
-            )
+            options["redirect_to"] = redirect_to
+        if options:
+            client.auth.reset_password_for_email(email, options=options)
         else:
             client.auth.reset_password_for_email(email)
-    except Exception:  # noqa: BLE001 — best-effort
-        logger.info("Tentativa de reset de senha (silenciada).")
+        logger.info("E-mail de reset de senha solicitado para %s.", email)
+    except Exception:  # noqa: BLE001 — best-effort, mas precisamos do stack
+        logger.exception(
+            "Falha ao disparar e-mail de reset de senha para %s "
+            "(verifique SMTP no Dashboard do Supabase e a lista de "
+            "Redirect URLs em Authentication → URL Configuration).",
+            email,
+        )
