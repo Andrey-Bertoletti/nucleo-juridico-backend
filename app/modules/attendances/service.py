@@ -278,6 +278,8 @@ def create_attendance(
         notes=payload.notes,
         urgency=payload.urgency,
         status="novo_atendimento",
+        responsible_student_name=payload.responsible_student_name,
+        responsible_student_matricula=payload.responsible_student_matricula,
     )
     db.add(attendance)
     db.flush()

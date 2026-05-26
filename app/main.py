@@ -14,6 +14,7 @@ from app.modules.clients.router import router as clients_router
 from app.modules.documents.router import router as documents_router
 from app.modules.orientations.router import router as orientations_router
 from app.modules.reports.router import router as reports_router
+from app.modules.templates.router import router as templates_router
 from app.modules.triage.router import router as triage_router
 from app.modules.users.router import router as users_router
 
@@ -50,6 +51,7 @@ app.include_router(orientations_router)
 app.include_router(appointments_router)
 app.include_router(catalogs_router)
 app.include_router(reports_router)
+app.include_router(templates_router)
 app.include_router(admin_router)
 
 

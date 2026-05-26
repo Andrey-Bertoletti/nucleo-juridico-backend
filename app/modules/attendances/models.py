@@ -35,6 +35,16 @@ class Attendance(Base):
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Identificação MANUAL do aluno responsável — necessária porque o login de
+    # aluno é compartilhado entre estagiários. `student_id` aponta pro profile
+    # do user logado (provavelmente o "aluno geral"); estes campos guardam quem
+    # realmente conduziu o atendimento e vai assinar.
+    responsible_student_name: Mapped[str | None] = mapped_column(
+        String(200), nullable=True
+    )
+    responsible_student_matricula: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
     urgency: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )

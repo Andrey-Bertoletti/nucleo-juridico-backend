@@ -49,6 +49,9 @@ class AttendanceCreate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     notes: str | None = Field(default=None, max_length=4000)
     urgency: bool = False
+    # Identificação manual do aluno responsável (login de aluno é compartilhado).
+    responsible_student_name: str | None = Field(default=None, max_length=200)
+    responsible_student_matricula: str | None = Field(default=None, max_length=50)
 
 
 class AttendanceUpdate(BaseModel):
@@ -59,6 +62,8 @@ class AttendanceUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     notes: str | None = Field(default=None, max_length=4000)
     urgency: bool | None = None
+    responsible_student_name: str | None = Field(default=None, max_length=200)
+    responsible_student_matricula: str | None = Field(default=None, max_length=50)
 
 
 class AttendanceStatusUpdate(BaseModel):
@@ -87,6 +92,8 @@ class AttendanceResponse(BaseModel):
     notes: str | None
     urgency: bool
     status: AttendanceStatus
+    responsible_student_name: str | None
+    responsible_student_matricula: str | None
     created_at: datetime
     updated_at: datetime
     finished_at: datetime | None
