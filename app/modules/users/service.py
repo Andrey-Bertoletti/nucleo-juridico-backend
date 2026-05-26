@@ -1,6 +1,8 @@
 """Regras de negócio do módulo users."""
 
 import logging
+import secrets
+import string
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -14,6 +16,35 @@ from app.services.supabase_client import get_admin_client
 
 
 logger = logging.getLogger("nucleo_juridico")
+
+
+# Caracteres da senha temporária — excluímos os ambíguos visualmente
+# (O/0/o, I/l/1) para o usuário não confundir ao digitar o que veio do papel.
+_TEMP_PASSWORD_ALPHABET = (
+    "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    "abcdefghijkmnpqrstuvwxyz"
+    "23456789"
+    "!@#$%&*"
+)
+
+
+def _generate_temp_password(length: int = 14) -> str:
+    """Gera senha aleatória forte para entregar manualmente ao usuário.
+
+    Garante pelo menos uma maiúscula, uma minúscula, um dígito e um símbolo —
+    senão o Supabase pode rejeitar se a política exigir composição.
+    """
+    while True:
+        candidate = "".join(
+            secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(length)
+        )
+        if (
+            any(c.isupper() for c in candidate)
+            and any(c.islower() for c in candidate)
+            and any(c.isdigit() for c in candidate)
+            and any(c in "!@#$%&*" for c in candidate)
+        ):
+            return candidate
 
 
 def list_users(db: Session) -> list[Profile]:
@@ -206,3 +237,42 @@ def change_status(
     db.commit()
     db.refresh(profile)
     return profile
+
+
+def reset_password(db: Session, user_id: UUID) -> tuple[Profile, str]:
+    """Gera uma senha temporária e aplica via Supabase Admin API.
+
+    Retorna o profile e a senha em CLARO — a senha só é exibida uma vez no
+    response e fica com o admin (em papel ou anotação fora do sistema) para
+    entregar ao usuário. Não persistimos a senha em nenhum lugar do nosso
+    banco.
+
+    Esse fluxo existe pra não depender do e-mail de reset (que falha quando
+    o SMTP do Supabase não está configurado), e pra desbloquear quando o
+    usuário não consegue receber o link por qualquer razão. Veja
+    [[shared-student-login]] — em especial pra resetar o login compartilhado
+    do aluno geral periodicamente.
+    """
+    profile = get_user(db, user_id)
+    temp_password = _generate_temp_password()
+    try:
+        admin = get_admin_client()
+        admin.auth.admin.update_user_by_id(
+            str(profile.user_id), {"password": temp_password}
+        )
+    except Exception as exc:  # noqa: BLE001 — Supabase pode lançar várias
+        logger.exception(
+            "Falha ao resetar senha do user_id=%s no Supabase Auth.",
+            profile.user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Não foi possível redefinir a senha junto ao provedor de autenticação.",
+        ) from exc
+
+    logger.info(
+        "Senha redefinida administrativamente para profile %s (email=%s).",
+        profile.id,
+        profile.email,
+    )
+    return profile, temp_password

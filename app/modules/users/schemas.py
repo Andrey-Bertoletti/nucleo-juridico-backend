@@ -51,3 +51,15 @@ class UserResponse(BaseModel):
     status: UserStatus
     created_at: datetime
     updated_at: datetime
+
+
+class PasswordResetResponse(BaseModel):
+    """Resposta do reset administrativo — senha em claro só é entregue UMA vez.
+
+    O frontend mostra essa senha em um modal copiável e deixa claro que o
+    usuário deve trocá-la no próximo login (não há mecanismo de força,
+    confiamos no fluxo de "esqueci minha senha" se quiser trocar).
+    """
+
+    user: UserResponse
+    temp_password: str

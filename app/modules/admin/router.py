@@ -16,6 +16,7 @@ from app.modules.catalogs.schemas import DemandTypeItem, LegalAreaItem
 from app.modules.users import service as users_service
 from app.modules.users.models import Profile
 from app.modules.users.schemas import (
+    PasswordResetResponse,
     UserCreate,
     UserResponse,
     UserStatusUpdate,
@@ -77,6 +78,27 @@ def change_user_status(
     _current: CurrentUser,
 ) -> UserResponse:
     return users_service.change_status(db, user_id, payload)  # type: ignore[return-value]
+
+
+@router.post(
+    "/users/{user_id}/reset-password",
+    response_model=PasswordResetResponse,
+)
+def reset_user_password(
+    user_id: UUID, db: DbSession, _current: CurrentUser
+) -> PasswordResetResponse:
+    """Gera uma senha temporária e a aplica no Supabase Auth.
+
+    A senha é retornada UMA VEZ — coordenação anota e entrega ao usuário.
+    Útil quando o fluxo de e-mail de recuperação não está disponível (SMTP
+    fora do ar, conta de e-mail desativada, login de aluno compartilhado
+    que precisa ser zerado, etc.).
+    """
+    profile, temp_password = users_service.reset_password(db, user_id)
+    return PasswordResetResponse(
+        user=UserResponse.model_validate(profile),
+        temp_password=temp_password,
+    )
 
 
 # ===========================================================================
