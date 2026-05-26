@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.users.models import Profile
 from app.modules.users.schemas import UserCreate, UserStatusUpdate, UserUpdate
-from app.services.supabase_client import get_admin_client
+from app.services.supabase_client import get_admin_client, get_anon_client
 
 
 logger = logging.getLogger("nucleo_juridico")
