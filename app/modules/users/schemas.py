@@ -18,9 +18,16 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """Criação de usuário — cria conta no Supabase Auth e o profile correspondente."""
+    """Criação de usuário — cria conta no Supabase Auth e o profile correspondente.
 
-    password: str = Field(min_length=8, max_length=72)
+    `password` é opcional: quando ausente, o backend usa o fluxo de
+    `invite_user_by_email`, que envia ao usuário um e-mail com link para
+    definir a própria senha (e confirma o e-mail no clique). Esse é o
+    caminho recomendado — o admin nunca precisa transmitir senha por
+    canal lateral.
+    """
+
+    password: str | None = Field(default=None, min_length=8, max_length=72)
 
 
 class UserUpdate(BaseModel):

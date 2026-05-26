@@ -7,9 +7,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.settings import settings
 from app.modules.users.models import Profile
 from app.modules.users.schemas import UserCreate, UserStatusUpdate, UserUpdate
-from app.services.supabase_client import get_admin_client, get_anon_client
+from app.services.supabase_client import get_admin_client
 
 
 logger = logging.getLogger("nucleo_juridico")
@@ -48,37 +49,43 @@ def _delete_supabase_auth_user(auth_user_id: str) -> None:
         )
 
 
-def _send_welcome_password_email(email: str) -> None:
-    """Envia ao usuário recém-criado um link para definir a própria senha.
+def _set_initial_password(auth_user_id: str, password: str) -> None:
+    """Define a senha do usuário recém-convidado.
 
-    Usa o fluxo de "reset password" do Supabase (mesmo do esqueci-senha),
-    o que tem duas vantagens:
-      1. O admin não precisa transmitir a senha provisória por canal seguro.
-      2. O link cai no template "Reset password" do Dashboard, que já está
-         localizado em PT-BR no projeto.
-
-    Como o e-mail só será de fato entregue se o SMTP do Supabase estiver
-    configurado, esta função é best-effort: falhas são apenas logadas e
-    não derrubam o cadastro (o admin ainda pode comunicar a senha provisória).
+    Usado apenas quando o admin opta por enviar uma senha provisória junto
+    com o convite (campo `password` no payload). Como `invite_user_by_email`
+    não aceita senha, definimos via `admin.update_user_by_id` logo depois.
+    Best-effort: falha aqui não anula o convite (o usuário ainda pode
+    definir a senha pelo link do e-mail).
     """
     try:
-        anon = get_anon_client()
-        anon.auth.reset_password_for_email(email)
-        logger.info("E-mail de boas-vindas (set password) enviado para %s.", email)
+        admin = get_admin_client()
+        admin.auth.admin.update_user_by_id(auth_user_id, {"password": password})
     except Exception:  # noqa: BLE001 — best-effort
         logger.exception(
-            "Falha ao enviar e-mail de boas-vindas para %s "
-            "(verifique SMTP no Dashboard do Supabase).",
-            email,
+            "Falha ao definir senha provisória para auth_user_id=%s. "
+            "O usuário ainda pode definir a senha via link do convite.",
+            auth_user_id,
         )
 
 
 def create_user(db: Session, payload: UserCreate) -> Profile:
-    """Cria a conta no Supabase Auth e o profile correspondente.
+    """Cria a conta via `invite_user_by_email` e o profile correspondente.
 
-    Em caso de falha após a criação no Supabase Auth (e-mail duplicado em
-    profiles, erro de banco, retorno inválido do Supabase), a conta criada
-    no Supabase Auth é removida em rollback compensatório — evita órfão.
+    Fluxo:
+      1. Verifica que o e-mail não está em `profiles` (evita duplicata).
+      2. Chama `admin.auth.admin.invite_user_by_email(email, redirect_to=...)`.
+         O Supabase cria o `auth.users`, dispara o e-mail de convite e
+         marca o e-mail como NÃO confirmado até o usuário clicar no link.
+      3. Se o payload trouxer `password`, define-a via `update_user_by_id`
+         (best-effort) — útil para uma senha provisória combinada por outro
+         canal. Sem isso, o usuário define a senha exclusivamente pelo link.
+      4. Persiste o `profile` linkado ao `auth.users.id`. Se a persistência
+         falhar, o `auth.users` é removido em rollback compensatório.
+
+    O link no e-mail aponta para `FRONTEND_URL/reset-password` — a mesma
+    página usada no fluxo "esqueci minha senha", então não precisamos de
+    UI duplicada.
     """
     if db.query(Profile).filter(Profile.email == payload.email).first():
         raise HTTPException(
@@ -87,27 +94,27 @@ def create_user(db: Session, payload: UserCreate) -> Profile:
         )
 
     admin = get_admin_client()
+    redirect_to = f"{settings.FRONTEND_URL}/reset-password"
     try:
-        result = admin.auth.admin.create_user(
-            {
-                "email": payload.email,
-                "password": payload.password,
-                # `email_confirm=True` evita que o Supabase exija que o usuário
-                # confirme o e-mail antes do primeiro login. A senha vem do admin,
-                # então não há necessidade de double-opt-in. O e-mail de boas-vindas
-                # (com link para o usuário redefinir a senha) é disparado logo
-                # abaixo, separadamente, e não depende dessa confirmação.
-                "email_confirm": True,
-                "user_metadata": {"name": payload.name, "role": payload.role},
-            }
+        result = admin.auth.admin.invite_user_by_email(
+            payload.email,
+            options={
+                "redirect_to": redirect_to,
+                "data": {"name": payload.name, "role": payload.role},
+            },
         )
     except Exception as exc:  # noqa: BLE001 — supabase pode lançar várias subclasses
         # Log detalhado fica no servidor; resposta é genérica para não vazar
-        # estrutura interna do Supabase Auth.
-        logger.exception("Falha ao criar usuário no Supabase Auth.")
+        # estrutura interna do Supabase Auth (rate-limit, SMTP, etc.).
+        logger.exception(
+            "Falha ao convidar usuário %s no Supabase Auth "
+            "(verifique SMTP no Dashboard do Supabase e a Redirect URL %s).",
+            payload.email,
+            redirect_to,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Não foi possível criar o usuário no provedor de autenticação.",
+            detail="Não foi possível enviar o convite. Verifique o e-mail e tente novamente.",
         ) from exc
 
     auth_user = getattr(result, "user", None)
@@ -120,11 +127,9 @@ def create_user(db: Session, payload: UserCreate) -> Profile:
 
     auth_user_id_str = str(auth_user_id)
 
-    # E-mail de boas-vindas: dispara um link de recovery para que o usuário
-    # crie a própria senha. Best-effort — se o SMTP do Supabase falhar (ou
-    # estourar rate-limit), o usuário ainda pode logar com a senha provisória
-    # informada pelo admin e usar o fluxo "esqueci minha senha" depois.
-    _send_welcome_password_email(payload.email)
+    # Senha provisória opcional — não interrompe o fluxo se falhar.
+    if payload.password:
+        _set_initial_password(auth_user_id_str, payload.password)
 
     # A partir daqui qualquer falha exige rollback compensatório no auth.users.
     try:
@@ -138,6 +143,11 @@ def create_user(db: Session, payload: UserCreate) -> Profile:
         db.add(profile)
         db.commit()
         db.refresh(profile)
+        logger.info(
+            "Convite enviado para %s (auth_user_id=%s).",
+            payload.email,
+            auth_user_id_str,
+        )
         return profile
     except SQLAlchemyError as exc:
         db.rollback()

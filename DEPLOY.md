@@ -90,13 +90,40 @@ Em **Authentication → Rate Limits**:
 
 Em **Authentication → URL Configuration**:
 
-- **Site URL**: URL final do frontend Vercel (ex.: `https://nucleo-juridico-frontend.vercel.app`).
-- **Redirect URLs** (adicionar TODAS as variações):
-  - `https://nucleo-juridico-frontend.vercel.app/reset-password`
-  - `https://nucleo-juridico-frontend.vercel.app/**` (libera previews da Vercel)
-  - `http://localhost:3000/reset-password` (desenvolvimento)
+- **Site URL**: `https://nucleo-juridico-frontend-fon2.vercel.app`
+- **Redirect URLs** (adicionar TODAS as variações abaixo, uma por linha):
+  - `https://nucleo-juridico-frontend-fon2.vercel.app`
+  - `https://nucleo-juridico-frontend-fon2.vercel.app/login` (callback do Google OAuth)
+  - `https://nucleo-juridico-frontend-fon2.vercel.app/reset-password` (convite + reset)
+  - `https://nucleo-juridico-frontend-fon2.vercel.app/**` (libera previews da Vercel)
+  - `http://localhost:3000/login` (desenvolvimento — Google OAuth)
+  - `http://localhost:3000/reset-password` (desenvolvimento — convite/reset)
 
-> **Se a Redirect URL não estiver na allowlist, o Supabase ignora o `redirect_to` e manda o usuário para a Site URL** — o link "Redefinir senha" abre a home em vez do formulário. Sintoma clássico de allowlist faltando.
+> **Se a Redirect URL não estiver na allowlist, o Supabase ignora o `redirect_to` e manda o usuário para a Site URL** — o link do e-mail abre a home em vez do formulário. Sintoma clássico de allowlist faltando.
+
+### 1.4.4. Google OAuth (login com Google)
+
+Em **Authentication → Providers → Google**:
+
+1. **Enable Sign in with Google**: ON.
+2. **Client IDs** / **Client Secret**: vêm do **Google Cloud Console**:
+   - https://console.cloud.google.com/apis/credentials → **Create Credentials** → **OAuth Client ID** → **Web application**.
+   - **Authorized JavaScript origins**:
+     - `https://nucleo-juridico-frontend-fon2.vercel.app`
+     - `http://localhost:3000`
+   - **Authorized redirect URIs** (este é o callback do Supabase, NÃO do frontend):
+     - `https://kyhspzjpvughewfwbiym.supabase.co/auth/v1/callback`
+   - Copie o **Client ID** e **Client Secret** gerados.
+3. Cole no Dashboard do Supabase e salve.
+4. (Opcional) **Skip nonce check**: ative em desenvolvimento se aparecer "nonce check failed" no localhost.
+
+Em **OAuth consent screen** (Google Cloud):
+- **User Type**: External (ou Internal se a organização do ITES tiver Workspace).
+- **App name**: `NPJ-ITES — Núcleo de Práticas Jurídicas`.
+- **Authorized domains**: `vercel.app` e (se aplicável) o domínio do ITES.
+- Scopes mínimos: `email`, `profile`, `openid`.
+
+> **Importante para a regra "cadastro só pelo admin"**: o frontend chama `/auth/me` depois do callback do Google. Se o usuário não tem um `profile` cadastrado, recebe 404 e a UI mostra "Sua conta do Google não está vinculada ao sistema". Para que o vínculo aconteça, o admin precisa convidar o usuário PRIMEIRO (com o mesmo e-mail Google) — o Supabase faz identity linking automaticamente quando os e-mails batem.
 
 ### 1.4.3. Templates de e-mail (Reset password e Confirm signup)
 
@@ -156,7 +183,8 @@ O repositório vem com `render.yaml` configurado.
    | `SUPABASE_ANON_KEY` | anon key |
    | `SUPABASE_SERVICE_ROLE_KEY` | service role key |
    | `SUPABASE_JWT_SECRET` | JWT secret |
-   | `CORS_ORIGINS` | URL final do frontend Vercel (ex.: `https://nucleo-juridico-frontend.vercel.app`) |
+   | `FRONTEND_URL` | `https://nucleo-juridico-frontend-fon2.vercel.app` (usado nos links de convite/reset por e-mail) |
+   | `CORS_ORIGINS` | `https://nucleo-juridico-frontend-fon2.vercel.app` |
    | `CORS_ORIGIN_REGEX` | (opcional) `^https://nucleo-juridico-frontend(-[\w-]+)?\.vercel\.app$` para previews |
 
 5. **Create Resources** → build leva ~3-5 min.

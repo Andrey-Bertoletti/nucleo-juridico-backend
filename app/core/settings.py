@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     SUPABASE_JWT_SECRET: str
     SUPABASE_STORAGE_BUCKET: str = "documentos"
 
+    # --- Frontend ---
+    # URL pública do frontend, usada para construir os links que aparecem nos
+    # e-mails (convite de novo usuário, reset de senha quando o frontend não
+    # passa um `redirect_to` explícito). Sem essa URL, os links caem na
+    # `Site URL` configurada no Dashboard do Supabase — em ambientes com
+    # múltiplos deploys (preview, produção), isso costuma vazar o usuário
+    # para a URL errada.
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # --- CORS ---
     CORS_ORIGINS: str = "http://localhost:3000"
     # Regex opcional para liberar varias origens (ex.: previews do Vercel).
@@ -57,7 +66,7 @@ class Settings(BaseSettings):
             return "postgresql+psycopg://" + value[len("postgres://") :]
         return value
 
-    @field_validator("SUPABASE_URL")
+    @field_validator("SUPABASE_URL", "FRONTEND_URL")
     @classmethod
     def _strip_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")

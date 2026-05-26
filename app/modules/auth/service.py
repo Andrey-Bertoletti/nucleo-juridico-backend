@@ -11,6 +11,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.settings import settings
 from app.modules.users.models import Profile
 from app.services.supabase_client import get_admin_client, get_anon_client
 
@@ -130,23 +131,24 @@ def request_password_reset(email: str, redirect_to: str | None = None) -> None:
     diagnóstico — em desenvolvimento, faça `tail -f` no log do uvicorn
     e procure por "Falha ao disparar e-mail de reset".
     """
+    # Fallback: se o frontend não passou um redirect_to (chamada via curl,
+    # outro cliente, ou compatibilidade antiga), usa a URL pública do
+    # frontend configurada no backend. Sem isso, o link cai na Site URL
+    # genérica do Supabase.
+    target = redirect_to or f"{settings.FRONTEND_URL}/reset-password"
     try:
-        # Não usamos `get_anon_client()` (cached) aqui: se o cliente cacheado
-        # estiver em estado inválido, futuros resets também falham. Criar um
-        # cliente novo isola cada tentativa.
         client = get_anon_client()
-        options: dict[str, str] = {}
-        if redirect_to:
-            options["redirect_to"] = redirect_to
-        if options:
-            client.auth.reset_password_for_email(email, options=options)
-        else:
-            client.auth.reset_password_for_email(email)
-        logger.info("E-mail de reset de senha solicitado para %s.", email)
+        client.auth.reset_password_for_email(email, options={"redirect_to": target})
+        logger.info(
+            "E-mail de reset de senha solicitado para %s (redirect_to=%s).",
+            email,
+            target,
+        )
     except Exception:  # noqa: BLE001 — best-effort, mas precisamos do stack
         logger.exception(
             "Falha ao disparar e-mail de reset de senha para %s "
-            "(verifique SMTP no Dashboard do Supabase e a lista de "
-            "Redirect URLs em Authentication → URL Configuration).",
+            "(verifique SMTP no Dashboard do Supabase e que %s está em "
+            "Authentication → URL Configuration → Redirect URLs).",
             email,
+            target,
         )
