@@ -3,11 +3,15 @@
 from datetime import date
 from uuid import UUID
 
+import io
+
 from fastapi import APIRouter, Query
+from fastapi.responses import StreamingResponse
 
 from app.core.dependencies import CurrentUser, DbSession
 from app.modules.attendances.schemas import AttendanceListItem
 from app.modules.reports import service
+from app.modules.reports.export import generate_excel, generate_pdf
 from app.modules.reports.schemas import (
     AreaCount,
     DashboardCounters,
@@ -187,3 +191,124 @@ def reports_pending_analysis(
         db, current_user, limit=limit, offset=offset
     )
     return [AttendanceListItem(**r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Exportação de relatórios
+# ---------------------------------------------------------------------------
+
+def _fetch_report_data(
+    db: DbSession,
+    current_user: CurrentUser,
+    period_from: date | None,
+    period_to: date | None,
+    legal_area_id: UUID | None,
+    student_id: UUID | None,
+    teacher_id: UUID | None,
+) -> tuple[dict, list, list, list, list]:
+    """Busca todos os dados necessários para gerar o relatório exportado."""
+    summary_data = service.get_summary(
+        db,
+        current_user,
+        period_from=period_from,
+        period_to=period_to,
+        legal_area_id=legal_area_id,
+        student_id=student_id,
+        teacher_id=teacher_id,
+    )
+    status_data = service.by_status(
+        db,
+        current_user,
+        period_from=period_from,
+        period_to=period_to,
+        legal_area_id=legal_area_id,
+        student_id=student_id,
+        teacher_id=teacher_id,
+    )
+    area_data = service.by_area(
+        db,
+        current_user,
+        period_from=period_from,
+        period_to=period_to,
+        student_id=student_id,
+        teacher_id=teacher_id,
+    )
+    student_data = service.by_user(
+        db,
+        current_user,
+        join_field="student_id",
+        period_from=period_from,
+        period_to=period_to,
+        legal_area_id=legal_area_id,
+    )
+    teacher_data = service.by_user(
+        db,
+        current_user,
+        join_field="teacher_id",
+        period_from=period_from,
+        period_to=period_to,
+        legal_area_id=legal_area_id,
+    )
+    return summary_data, status_data, area_data, student_data, teacher_data
+
+
+@router.get("/reports/export/pdf")
+def export_pdf(
+    db: DbSession,
+    current_user: CurrentUser,
+    period_from: date | None = Query(default=None, alias="from"),
+    period_to: date | None = Query(default=None, alias="to"),
+    legal_area_id: UUID | None = Query(default=None),
+    student_id: UUID | None = Query(default=None),
+    teacher_id: UUID | None = Query(default=None),
+) -> StreamingResponse:
+    summary_data, status_data, area_data, student_data, teacher_data = (
+        _fetch_report_data(
+            db, current_user, period_from, period_to,
+            legal_area_id, student_id, teacher_id,
+        )
+    )
+
+    pdf_bytes = generate_pdf(
+        summary_data, status_data, area_data,
+        student_data, teacher_data,
+        period_from, period_to,
+    )
+
+    filename = f"relatorio_nucleo_juridico_{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/reports/export/excel")
+def export_excel(
+    db: DbSession,
+    current_user: CurrentUser,
+    period_from: date | None = Query(default=None, alias="from"),
+    period_to: date | None = Query(default=None, alias="to"),
+    legal_area_id: UUID | None = Query(default=None),
+    student_id: UUID | None = Query(default=None),
+    teacher_id: UUID | None = Query(default=None),
+) -> StreamingResponse:
+    summary_data, status_data, area_data, student_data, teacher_data = (
+        _fetch_report_data(
+            db, current_user, period_from, period_to,
+            legal_area_id, student_id, teacher_id,
+        )
+    )
+
+    excel_bytes = generate_excel(
+        summary_data, status_data, area_data,
+        student_data, teacher_data,
+        period_from, period_to,
+    )
+
+    filename = f"relatorio_nucleo_juridico_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
