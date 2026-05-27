@@ -38,7 +38,7 @@ from app.services.supabase_client import get_admin_client  # noqa: E402
 SEED_USERS: list[dict[str, str]] = [
     {
         "name": "Coordenação NPJ",
-        "email": "admin@ites.edu.br",
+        "email": "admin@ites.com.br",
         "password": "Admin@1234",
         "role": "admin_coordenacao",
     },
@@ -102,7 +102,7 @@ def main() -> None:
 
     print()
     print("Credenciais criadas para uso em desenvolvimento:")
-    print("  admin@ites.edu.br     / Admin@1234       (admin_coordenacao)")
+    print("  admin@ites.com.br     / Admin@1234       (admin_coordenacao)")
     print("  professor@ites.edu.br / Professor@1234   (professor_orientador)")
     print()
     print("Troque as senhas antes de qualquer uso em produção.")

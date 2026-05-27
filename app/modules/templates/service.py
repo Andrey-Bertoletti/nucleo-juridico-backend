@@ -1,5 +1,6 @@
 """Regras de negócio do módulo templates (modelos + geração)."""
 
+import html
 import re
 from typing import Any
 from uuid import UUID
@@ -11,6 +12,7 @@ from app.modules.templates.models import GeneratedDocument, Template
 from app.modules.templates.schemas import (
     GenerateDocumentRequest,
     TemplateCreate,
+    TemplateStatusUpdate,
     TemplateUpdate,
 )
 from app.modules.users.models import Profile
@@ -50,6 +52,7 @@ def create_template(
 ) -> Template:
     tpl = Template(
         title=payload.title.strip(),
+        description=payload.description.strip() if payload.description else None,
         type=payload.type,
         content=payload.content,
         dynamic_fields=[f.model_dump() for f in payload.dynamic_fields],
@@ -74,8 +77,21 @@ def update_template(
         ]
     if "title" in data and data["title"] is not None:
         data["title"] = data["title"].strip()
+    if "description" in data and data["description"] is not None:
+        data["description"] = data["description"].strip() or None
     for field, value in data.items():
         setattr(tpl, field, value)
+    db.commit()
+    db.refresh(tpl)
+    return tpl
+
+
+def change_template_status(
+    db: Session, template_id: UUID, payload: TemplateStatusUpdate
+) -> Template:
+    """Ativa ou inativa o modelo (mudança reversível)."""
+    tpl = get_template(db, template_id)
+    tpl.status = payload.status
     db.commit()
     db.refresh(tpl)
     return tpl
@@ -88,19 +104,52 @@ def delete_template(db: Session, template_id: UUID) -> None:
     db.commit()
 
 
+def delete_template_permanently(db: Session, template_id: UUID) -> None:
+    """Exclui permanentemente o modelo do banco.
+
+    Bloqueado se houver `generated_documents` apontando para ele — preservar
+    auditoria é mais importante que economizar registros. Se a coordenação
+    quiser remover de qualquer jeito, precisa primeiro apagar os documentos
+    gerados (não exposto via API por enquanto).
+    """
+    tpl = get_template(db, template_id)
+    in_use = (
+        db.query(GeneratedDocument)
+        .filter(GeneratedDocument.template_id == tpl.id)
+        .first()
+    )
+    if in_use is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Este modelo já gerou documentos e não pode ser excluído "
+                "permanentemente. Inative-o para evitar novos usos."
+            ),
+        )
+    db.delete(tpl)
+    db.commit()
+
+
 # ---------------------------------------------------------------------------
 # Geração de documento
 # ---------------------------------------------------------------------------
 def _interpolate(content: str, data: dict[str, Any]) -> str:
-    """Substitui `{{nome}}` por `data["nome"]`. Campos ausentes viram `____`
-    (linha em branco) para facilitar o preenchimento manual posterior."""
+    """Substitui `{{nome}}` por `data["nome"]` dentro do HTML do conteúdo.
+
+    Valores são HTML-escapados para impedir que algum input do usuário
+    quebre o markup (ou injete tags). Campos vazios viram uma linha de
+    underscores — útil para preenchimento manual posterior no papel.
+    Quebras de linha (`\\n`) no valor viram `<br>` para preservar a
+    formatação visual do que o aluno digitou.
+    """
 
     def _sub(match: re.Match[str]) -> str:
         key = match.group(1)
         value = data.get(key)
         if value is None or value == "":
             return "____________"
-        return str(value)
+        escaped = html.escape(str(value), quote=False)
+        return escaped.replace("\n", "<br>")
 
     return _PLACEHOLDER.sub(_sub, content)
 

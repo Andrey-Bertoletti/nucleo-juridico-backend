@@ -26,8 +26,11 @@ class Template(Base):
         PG_UUID(as_uuid=True), primary_key=True, default=uuid4
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # type ∈ {"relatorio", "atendimento", "documento"} — validado no schema
     type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    # HTML enriquecido vindo do editor Tiptap. Placeholders `{{nome_campo}}`
+    # ficam dentro do markup (geralmente em `<span data-field>` no editor).
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # Lista de campos dinâmicos: [{"name", "label", "type", "required"}, ...].
     dynamic_fields: Mapped[list[dict[str, Any]]] = mapped_column(

@@ -11,6 +11,7 @@ from app.modules.templates.schemas import (
     GeneratedDocumentResponse,
     TemplateCreate,
     TemplateResponse,
+    TemplateStatusUpdate,
     TemplateType,
     TemplateUpdate,
 )
@@ -65,13 +66,39 @@ def update_template(
     return service.update_template(db, template_id, payload)  # type: ignore[return-value]
 
 
+@router.patch("/templates/{template_id}/status", response_model=TemplateResponse)
+def change_template_status(
+    template_id: UUID,
+    payload: TemplateStatusUpdate,
+    db: DbSession,
+    _admin: Profile = Depends(require_admin),
+) -> TemplateResponse:
+    """Alterna entre ativo/inativo (reversível, diferente do delete)."""
+    return service.change_template_status(db, template_id, payload)  # type: ignore[return-value]
+
+
 @router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_template(
     template_id: UUID,
     db: DbSession,
     _admin: Profile = Depends(require_admin),
 ) -> Response:
+    """Soft delete (inativa). Para excluir permanentemente, use `/permanent`."""
     service.delete_template(db, template_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/templates/{template_id}/permanent",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_template_permanent(
+    template_id: UUID,
+    db: DbSession,
+    _admin: Profile = Depends(require_admin),
+) -> Response:
+    """Exclusão definitiva — só permitida se nenhum documento foi gerado."""
+    service.delete_template_permanently(db, template_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

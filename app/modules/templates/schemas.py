@@ -25,6 +25,7 @@ class DynamicField(BaseModel):
 
 class TemplateCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
     type: TemplateType
     content: str = Field(..., min_length=1)
     dynamic_fields: list[DynamicField] = Field(default_factory=list)
@@ -33,10 +34,15 @@ class TemplateCreate(BaseModel):
 
 class TemplateUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
     type: TemplateType | None = None
     content: str | None = Field(default=None, min_length=1)
     dynamic_fields: list[DynamicField] | None = None
     status: TemplateStatus | None = None
+
+
+class TemplateStatusUpdate(BaseModel):
+    status: TemplateStatus
 
 
 class TemplateResponse(BaseModel):
@@ -44,6 +50,7 @@ class TemplateResponse(BaseModel):
 
     id: UUID
     title: str
+    description: str | None
     type: TemplateType
     content: str
     dynamic_fields: list[dict[str, Any]]
