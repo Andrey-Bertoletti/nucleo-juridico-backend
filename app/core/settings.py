@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # múltiplos deploys (preview, produção), isso costuma vazar o usuário
     # para a URL errada.
     FRONTEND_URL: str = "http://localhost:3000"
+    # Lista opcional de redirects EXATOS permitidos para fluxos de e-mail
+    # do Supabase Auth. Se vazia, o backend permite apenas
+    # `{FRONTEND_URL}/reset-password`.
+    AUTH_ALLOWED_REDIRECT_URLS: str = ""
 
     # --- CORS ---
     CORS_ORIGINS: str = "http://localhost:3000"
@@ -79,6 +83,16 @@ class Settings(BaseSettings):
             for o in self.CORS_ORIGINS.split(",")
             if o.strip()
         ]
+
+    @property
+    def auth_allowed_redirect_urls_list(self) -> list[str]:
+        configured = [
+            o.strip().rstrip("/")
+            for o in self.AUTH_ALLOWED_REDIRECT_URLS.split(",")
+            if o.strip()
+        ]
+        default_reset = f"{self.FRONTEND_URL}/reset-password"
+        return list(dict.fromkeys([default_reset, *configured]))
 
 
 @lru_cache

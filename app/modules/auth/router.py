@@ -9,7 +9,11 @@ from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
 from app.core.dependencies import BearerCredentials, CurrentUser, DbSession
-from app.core.rate_limit import enforce_login_rate_limit, reset_login_rate_limit
+from app.core.rate_limit import (
+    enforce_forgot_password_rate_limit,
+    enforce_login_rate_limit,
+    reset_login_rate_limit,
+)
 from app.modules.auth import service
 from app.modules.auth.schemas import (
     LoginRequest,
@@ -60,14 +64,18 @@ def refresh(payload: RefreshRequest) -> RefreshResponse:
 
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
-def forgot_password(payload: ForgotPasswordRequest) -> dict[str, str]:
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+) -> dict[str, str]:
     """Inicia recuperação de senha — resposta SEMPRE genérica.
 
     Por segurança (evitar enumeração de contas), respondemos `202` e a
     mesma mensagem independente de o e-mail existir ou não. O Supabase
     é quem decide se envia o e-mail.
     """
-    service.request_password_reset(payload.email, payload.redirect_to)
+    enforce_forgot_password_rate_limit(request, payload.email)
+    service.request_password_reset(payload.email, payload.redirect_to, request=request)
     return {
         "detail": (
             "Se houver uma conta vinculada ao e-mail informado, "

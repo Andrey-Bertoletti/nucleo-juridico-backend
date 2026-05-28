@@ -6,9 +6,10 @@ gerencia dados jurídicos sigilosos.
 """
 
 import logging
+from urllib.parse import urlparse
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.settings import settings
@@ -17,6 +18,72 @@ from app.services.supabase_client import get_admin_client, get_anon_client
 
 
 logger = logging.getLogger("nucleo_juridico")
+
+
+def _client_ip(request: Request | None) -> str:
+    if request is None:
+        return "unknown"
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client is not None:
+        return request.client.host or "anonymous"
+    return "anonymous"
+
+
+def _normalize_redirect_url(value: str) -> str:
+    return value.strip().rstrip("/")
+
+
+def _is_valid_redirect_url(value: str) -> bool:
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    if not parsed.netloc:
+        return False
+    if parsed.fragment:
+        return False
+    return True
+
+
+def _resolve_password_reset_redirect(
+    redirect_to: str | None,
+    *,
+    email: str,
+    request: Request | None,
+) -> str:
+    """Resolve redirect_to com allowlist local para evitar erro silencioso."""
+    fallback = f"{settings.FRONTEND_URL}/reset-password"
+    allowed = set(settings.auth_allowed_redirect_urls_list)
+
+    if not redirect_to:
+        return fallback
+
+    candidate = _normalize_redirect_url(redirect_to)
+    if not _is_valid_redirect_url(candidate):
+        logger.warning(
+            "Redirect de reset ignorado por formato inválido "
+            "(email=%s, ip=%s, redirect_to=%s, fallback=%s).",
+            email,
+            _client_ip(request),
+            redirect_to,
+            fallback,
+        )
+        return fallback
+
+    if candidate not in allowed:
+        logger.warning(
+            "Redirect de reset ignorado por não estar na allowlist local "
+            "(email=%s, ip=%s, redirect_to=%s, allowed=%s, fallback=%s).",
+            email,
+            _client_ip(request),
+            candidate,
+            sorted(allowed),
+            fallback,
+        )
+        return fallback
+
+    return candidate
 
 
 def login(db: Session, email: str, password: str) -> tuple[dict, Profile]:
@@ -114,7 +181,12 @@ def logout(access_token: str) -> None:
         return
 
 
-def request_password_reset(email: str, redirect_to: str | None = None) -> None:
+def request_password_reset(
+    email: str,
+    redirect_to: str | None = None,
+    *,
+    request: Request | None = None,
+) -> None:
     """Dispara o e-mail de reset de senha via Supabase.
 
     SEMPRE retorna `None` (mesmo se o e-mail não existir) — chamadores devem
@@ -131,24 +203,30 @@ def request_password_reset(email: str, redirect_to: str | None = None) -> None:
     diagnóstico — em desenvolvimento, faça `tail -f` no log do uvicorn
     e procure por "Falha ao disparar e-mail de reset".
     """
-    # Fallback: se o frontend não passou um redirect_to (chamada via curl,
-    # outro cliente, ou compatibilidade antiga), usa a URL pública do
-    # frontend configurada no backend. Sem isso, o link cai na Site URL
-    # genérica do Supabase.
-    target = redirect_to or f"{settings.FRONTEND_URL}/reset-password"
+    # Fallback: se o frontend não passou um redirect_to, ou passou uma URL
+    # fora da allowlist local, usa a URL pública do frontend configurada no
+    # backend. Isso evita erro silencioso de "redirect URL not allowed" no
+    # Supabase e reduz risco de open redirect quando a allowlist remota é ampla.
+    target = _resolve_password_reset_redirect(
+        redirect_to,
+        email=email,
+        request=request,
+    )
     try:
         client = get_anon_client()
         client.auth.reset_password_for_email(email, options={"redirect_to": target})
         logger.info(
-            "E-mail de reset de senha solicitado para %s (redirect_to=%s).",
+            "E-mail de reset de senha solicitado para %s (ip=%s, redirect_to=%s).",
             email,
+            _client_ip(request),
             target,
         )
     except Exception:  # noqa: BLE001 — best-effort, mas precisamos do stack
         logger.exception(
             "Falha ao disparar e-mail de reset de senha para %s "
-            "(verifique SMTP no Dashboard do Supabase e que %s está em "
+            "(ip=%s; verifique SMTP no Dashboard do Supabase e que %s está em "
             "Authentication → URL Configuration → Redirect URLs).",
             email,
+            _client_ip(request),
             target,
         )

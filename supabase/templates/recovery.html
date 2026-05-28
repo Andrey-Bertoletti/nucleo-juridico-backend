@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>Redefina sua senha</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f3f6fb; font-family:Arial, Helvetica, sans-serif; color:#172033;">
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
+      Use este link seguro para redefinir sua senha no Núcleo Jurídico.
+    </div>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; background-color:#f3f6fb; margin:0; padding:0;">
+      <tr>
+        <td align="center" style="padding:28px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; max-width:600px; background-color:#ffffff; border:1px solid #dfe7f2; border-radius:8px; overflow:hidden;">
+            <tr>
+              <td style="background-color:#0f4c81; padding:24px 28px;">
+                <p style="margin:0; font-size:13px; line-height:18px; color:#dbeafe; font-weight:bold; text-transform:uppercase; letter-spacing:0.04em;">
+                  Núcleo Jurídico
+                </p>
+                <h1 style="margin:8px 0 0; font-size:24px; line-height:31px; color:#ffffff; font-weight:bold;">
+                  Redefinição de senha
+                </h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:30px 28px 8px;">
+                <p style="margin:0 0 16px; font-size:16px; line-height:24px; color:#172033;">
+                  Olá.
+                </p>
+                <p style="margin:0 0 16px; font-size:15px; line-height:23px; color:#374151;">
+                  Recebemos uma solicitação para redefinir a senha da sua conta no Sistema do Núcleo Jurídico.
+                </p>
+                <p style="margin:0; font-size:15px; line-height:23px; color:#374151;">
+                  Clique no botão abaixo para criar uma nova senha. Por segurança, este link expira automaticamente.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td align="center" style="padding:26px 28px;">
+                <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery" style="display:inline-block; background-color:#0f4c81; color:#ffffff; font-size:15px; line-height:20px; font-weight:bold; text-decoration:none; padding:14px 22px; border-radius:6px;">
+                  Redefinir senha
+                </a>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:0 28px 28px;">
+                <p style="margin:0 0 12px; font-size:13px; line-height:20px; color:#64748b;">
+                  Se o botão não funcionar, copie e cole este endereço no navegador:
+                </p>
+                <p style="margin:0; word-break:break-all; font-size:12px; line-height:18px; color:#0f4c81;">
+                  {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:18px 28px; background-color:#f8fafc; border-top:1px solid #e5edf7;">
+                <p style="margin:0 0 8px; font-size:13px; line-height:19px; color:#475569;">
+                  Se você não solicitou esta redefinição, ignore este e-mail. Sua senha atual continuará válida.
+                </p>
+                <p style="margin:0; font-size:12px; line-height:18px; color:#64748b;">
+                  Esta é uma mensagem automática. Não responda este e-mail.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

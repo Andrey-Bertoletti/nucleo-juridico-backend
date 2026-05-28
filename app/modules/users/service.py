@@ -126,6 +126,13 @@ def create_user(db: Session, payload: UserCreate) -> Profile:
 
     admin = get_admin_client()
     redirect_to = f"{settings.FRONTEND_URL}/reset-password"
+    if redirect_to not in settings.auth_allowed_redirect_urls_list:
+        logger.warning(
+            "Redirect de convite não aparece na allowlist local "
+            "(redirect_to=%s, allowed=%s).",
+            redirect_to,
+            settings.auth_allowed_redirect_urls_list,
+        )
     try:
         result = admin.auth.admin.invite_user_by_email(
             payload.email,
