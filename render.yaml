@@ -55,6 +55,15 @@ services:
       - key: CORS_ORIGINS
         sync: false
 
+      # --- Frontend/Auth redirects ---
+      # URL pública principal do frontend, sem barra final.
+      - key: FRONTEND_URL
+        sync: false
+      # Redirects EXATOS aceitos pelo backend para forgot-password.
+      # Ex.: https://nucleo-juridico-frontend.vercel.app/reset-password,http://localhost:3000/reset-password
+      - key: AUTH_ALLOWED_REDIRECT_URLS
+        sync: false
+
       # --- JWT ---
       - key: JWT_ALGORITHM
         value: HS256
