@@ -13,6 +13,7 @@ from app.modules.catalogs.router import router as catalogs_router
 from app.modules.clients.router import router as clients_router
 from app.modules.documents.router import router as documents_router
 from app.modules.orientations.router import router as orientations_router
+from app.modules.pieces.router import router as pieces_router
 from app.modules.reports.router import router as reports_router
 from app.modules.templates.router import router as templates_router
 from app.modules.triage.router import router as triage_router
@@ -47,6 +48,7 @@ app.include_router(clients_router)
 app.include_router(attendances_router)
 app.include_router(triage_router)
 app.include_router(documents_router)
+app.include_router(pieces_router)
 app.include_router(orientations_router)
 app.include_router(appointments_router)
 app.include_router(catalogs_router)
