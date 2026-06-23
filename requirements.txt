@@ -25,3 +25,13 @@ httpx>=0.27
 # ===== Exportação de relatórios =====
 openpyxl>=3.1
 fpdf2>=2.8
+
+# ===== IA — extração de texto de documentos (Fase 1) =====
+pypdf>=5.0                     # texto de PDFs
+python-docx>=1.1               # texto de arquivos Word (.docx)
+
+# ===== IA — provedores reais (instale apenas o que for usar) =====
+anthropic>=0.40                # provedor Claude (AI_PROVIDER=anthropic)
+openai>=1.40                   # provedor OpenAI (AI_PROVIDER=openai)
+# OCR (imagens / PDFs escaneados) — necessário apenas no provedor LOCAL:
+#   pytesseract>=0.3            # + binário do Tesseract instalado no SO

@@ -118,6 +118,30 @@ Endpoints existentes (mantidos por compatibilidade). Para administração, prefi
 
 ---
 
+## `/ai` — Análise com IA (Fase 1)
+
+Análise dos documentos do NPJ por ações fechadas + relatório geral por cliente.
+A IA responde **somente** com base no conteúdo dos documentos. Processamento é
+assíncrono: o `POST` retorna `status=processando` (ou `pronto`, se veio do
+cache) e o frontend faz **polling** até `pronto`/`erro`. Resultado é cacheado.
+
+Ações de documento: `resumo`, `pontos_chave`, `prazos`, `partes`, `valores`,
+`detalhes`, `riscos`, `classificacao`.
+
+| Método | Rota | Acesso |
+|---|---|---|
+| POST | `/ai/documents/{document_id}/actions/{action}` | Logados. Body opcional `{ "force": bool }` |
+| GET | `/ai/documents/{document_id}/actions/{action}` | Logados. 404 se nunca gerada |
+| GET | `/ai/documents/{document_id}/analyses` | Logados. Lista análises do documento |
+| POST | `/ai/clients/{client_id}/general-report` | Logados. Análise Geral. 422 se o cliente não tem documentos |
+| GET | `/ai/clients/{client_id}/general-report` | Logados. 404 se nunca gerada |
+| GET | `/ai/analyses/{analysis_id}` | Logados. Polling de status por id |
+
+> Provedor configurável via `AI_PROVIDER` (`fake` no dev, sem custo). Custos e
+> riscos em `FASE-1-IMPLEMENTACAO-IA.md` / `FASE-2-RISCOS.md`.
+
+---
+
 ## `/appointments`
 
 | Método | Rota | Acesso |

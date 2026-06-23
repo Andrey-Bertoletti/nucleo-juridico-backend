@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.exceptions import install_exception_handlers
 from app.core.settings import settings
 from app.modules.admin.router import router as admin_router
+from app.modules.ai.router import router as ai_router
 from app.modules.appointments.router import router as appointments_router
 from app.modules.attendances.router import router as attendances_router
 from app.modules.auth.router import router as auth_router
@@ -49,6 +50,7 @@ app.include_router(attendances_router)
 app.include_router(triage_router)
 app.include_router(documents_router)
 app.include_router(pieces_router)
+app.include_router(ai_router)
 app.include_router(orientations_router)
 app.include_router(appointments_router)
 app.include_router(catalogs_router)

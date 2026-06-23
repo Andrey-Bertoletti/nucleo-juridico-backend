@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_AUDIENCE: str = "authenticated"
 
+    # --- IA (Análise com IA — Fase 1) ---
+    # Provedor de IA. Default `anthropic` (Claude). Exige AI_API_KEY definida.
+    AI_ENABLED: bool = True
+    AI_PROVIDER: str = "anthropic"     # anthropic | openai | local
+    AI_API_KEY: str | None = None      # chave do provedor externo (anthropic/openai)
+    AI_MODEL: str | None = None        # nome do modelo (default: claude-opus-4-8 no anthropic)
+    AI_MAX_INPUT_CHARS: int = 120000   # corte de segurança p/ documentos enormes
+
     @field_validator("DATABASE_URL")
     @classmethod
     def _ensure_psycopg_driver(cls, value: str) -> str:
